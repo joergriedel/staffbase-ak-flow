@@ -1,6 +1,6 @@
 (function(){
   'use strict';
-  // AK-FLOW v1.9
+  // AK-FLOW v2.0
  // Changes: hide agent start-screen, bigger fonts, email=joerg.riedel@staffbase.com
 
  if(!customElements.get('ak-flow-widget')){
