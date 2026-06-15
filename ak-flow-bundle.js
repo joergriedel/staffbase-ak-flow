@@ -1,7 +1,7 @@
 (function () {
 'use strict';
-// AK-FLOW v1.3 - Staffbase Custom Widget Bundle
-// New: Excel export + Email notification on order completion
+// AK-FLOW v1.4 - Staffbase Custom Widget Bundle
+// Option A: Silent mailto to joerg.riedel@me.com, no Excel, no UI hint
 
 if (!customElements.get('ak-flow-widget')) {
   customElements.define('ak-flow-widget', class extends HTMLElement {
@@ -104,85 +104,46 @@ function scrollDown(area){
   }
 }
 
-// Excel Export via SheetJS
-function loadSheetJS(cb){
-  if(window.XLSX){cb();return;}
-  var s=document.createElement('script');
-  s.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
-  s.onload=cb;
-  s.onerror=function(){console.error('[AK-Flow] SheetJS laden fehlgeschlagen');cb();};
-  document.head.appendChild(s);
-}
-
-function buildExcelAndEmail(orderNum){
-  loadSheetJS(function(){
-    var rows=[
-      ['Bestellnummer','Abteilung','Artikel','Bestellgrund','Lieferort','Lieferdatum','Oberteil','Hose','Schuh','Genehmiger'],
-      [
-        orderNum,
-        akState.abt||'',
-        (akState.art||[]).join(', '),
-        akState.gr||'',
-        akState.lo||'',
-        akState.dt||'',
-        akState.ob||'',
-        akState.ho||'',
-        akState.sc||'',
-        akState.gen||''
-      ]
-    ];
-    if(window.XLSX){
-      try{
-        var wb=XLSX.utils.book_new();
-        var ws=XLSX.utils.aoa_to_sheet(rows);
-        ws['!cols']=[{wch:18},{wch:22},{wch:40},{wch:28},{wch:20},{wch:16},{wch:10},{wch:10},{wch:10},{wch:25}];
-        XLSX.utils.book_append_sheet(wb,'Bestellung',ws);
-        var fname='AK-Bestellung-'+orderNum.replace('#','')+'.xlsx';
-        XLSX.writeFile(wb,fname);
-        console.log('[AK-Flow] Excel heruntergeladen: '+fname);
-      }catch(e){
-        console.error('[AK-Flow] Excel-Fehler:',e);
-      }
-    }
-    var subject=encodeURIComponent('Neue Arbeitskleidung-Bestellung '+orderNum);
-    var body=encodeURIComponent(
-      'Guten Tag,
+// Silent email notification — no Excel, no UI hint
+function sendOrderEmail(orderNum){
+  var subject=encodeURIComponent('Neue Arbeitskleidung-Bestellung '+orderNum);
+  var body=encodeURIComponent(
+    'Guten Tag,
 
 '+
-      'eine neue Bestellung für Arbeitskleidung wurde eingereicht.
+    'eine neue Bestellung für Arbeitskleidung wurde eingereicht.
 
 '+
-      'Bestellnummer: '+orderNum+'
+    'Bestellnummer:   '+orderNum+'
 '+
-      'Abteilung: '+(akState.abt||'')+'
+    'Abteilung:       '+(akState.abt||'')+'
 '+
-      'Artikel: '+(akState.art||[]).join(', ')+'
+    'Artikel:         '+(akState.art||[]).join(', ')+'
 '+
-      'Bestellgrund: '+(akState.gr||'')+'
+    'Bestellgrund:    '+(akState.gr||'')+'
 '+
-      'Lieferort: '+(akState.lo||'')+'
+    'Lieferort:       '+(akState.lo||'')+'
 '+
-      'Lieferdatum: '+(akState.dt||'')+'
+    'Lieferdatum:     '+(akState.dt||'')+'
 '+
-      (akState.ob?'Oberteil-Größe: '+akState.ob+'
-':'')+
-      (akState.ho?'Hosen-Größe: '+akState.ho+'
-':'')+
-      (akState.sc?'Schuh-Größe: '+akState.sc+'
-':'')+
-      'Genehmiger: '+(akState.gen||'')+'
+    (akState.ob ? 'Oberteil-Größe:  '+akState.ob+'
+' : '')+
+    (akState.ho ? 'Hosen-Größe:    '+akState.ho+'
+' : '')+
+    (akState.sc ? 'Schuh-Größe:    '+akState.sc+'
+' : '')+
+    'Genehmiger:      '+(akState.gen||'')+'
 
 '+
-      'Die vollständigen Bestelldetails finden Sie in der angehängten Excel-Datei ('+
-      'AK-Bestellung-'+orderNum.replace('#','')+'.xlsx).
-
-'+
-      'Mit freundlichen Grüßen
+    'Mit freundlichen Grüßen
 Kötter KI-Assistent'
-    );
-    var mailto='mailto:joerg.riedel@staffbase.com?subject='+subject+'&body='+body;
-    window.location.href=mailto;
-  });
+  );
+  // Open mail client silently via hidden iframe to avoid navigating away
+  var iframe=document.createElement('iframe');
+  iframe.style.display='none';
+  iframe.src='mailto:joerg.riedel@me.com?subject='+subject+'&body='+body;
+  document.body.appendChild(iframe);
+  setTimeout(function(){iframe.remove();},3000);
 }
 
 function startFlow(grid){
@@ -279,9 +240,9 @@ function success(area){
   akState.orderNum=num;
   botMsg(area,'<div class="ak-success-box"><div style="font-size:26px">🎉</div><div class="ak-order-num">'+num+'</div><div style="font-size:12px;color:#333">Bestellung erfolgreich eingereicht!</div></div>'+
     '<div style="font-size:11px;color:#555;margin-top:8px">📧 <strong>'+akState.gen+'</strong> wurde zur Genehmigung benachrichtigt.<br>'+
-    '<em>Lieferung: '+akState.lo+' | '+akState.dt+'</em></div>'+
-    '<div style="font-size:11px;color:#1a7f37;margin-top:6px">📊 Excel-Datei wird heruntergeladen &amp; E-Mail wird geöffnet...</div>',350).then(function(){
-    setTimeout(function(){buildExcelAndEmail(num);},800);
+    '<em>Lieferung: '+akState.lo+' | '+akState.dt+'</em></div>',350).then(function(){
+    // Fire email silently in background
+    setTimeout(function(){sendOrderEmail(num);},500);
     actionBar(area,[{label:'Neue Bestellung',fn:function(){area.innerHTML='';akState={};step1(area,area.parentElement);}}]);
   });
 }
@@ -308,5 +269,5 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
 var _p=history.pushState;
 history.pushState=function(){_p.apply(history,arguments);setTimeout(observe,500);};
 window.addEventListener('popstate',function(){setTimeout(observe,500);});
-console.log('[AK-Flow] v1.3 ready ✅ (Excel export + Email notification)');
+console.log('[AK-Flow] v1.4 ready ✅ (silent mailto to joerg.riedel@me.com)');
 })();
