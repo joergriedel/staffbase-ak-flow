@@ -1,7 +1,7 @@
 (function () {
 'use strict';
-// AK-FLOW v1.2 - Staffbase Custom Widget Bundle
-// Fix: Sticky action buttons so they are always visible
+// AK-FLOW v1.3 - Staffbase Custom Widget Bundle
+// New: Excel export + Email notification on order completion
 
 if (!customElements.get('ak-flow-widget')) {
   customElements.define('ak-flow-widget', class extends HTMLElement {
@@ -34,7 +34,6 @@ var AK_CSS=[
   '.ak-typing span:nth-child(2){animation-delay:.15s}',
   '.ak-typing span:nth-child(3){animation-delay:.3s}',
   '@keyframes akBounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}',
-  // Sticky action bar - always visible at bottom
   '.ak-action-bar{position:sticky;bottom:0;background:linear-gradient(transparent,#f5f5f5 20%);padding:12px 0 6px;margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:10}',
   '.ak-chat-btn{padding:8px 16px;background:#003366;color:white;border:none;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s;flex-shrink:0}',
   '.ak-chat-btn:hover{opacity:.85}',
@@ -53,14 +52,14 @@ function botMsg(area,html,delay){
     setTimeout(function(){
       var t=document.createElement('div');
       t.className='ak-bot-msg';
-      t.innerHTML='<div class="ak-bot-avatar">\u2728</div><div class="ak-bot-bubble"><div class="ak-typing"><span></span><span></span><span></span></div></div>';
+      t.innerHTML='<div class="ak-bot-avatar">✨</div><div class="ak-bot-bubble"><div class="ak-typing"><span></span><span></span><span></span></div></div>';
       area.appendChild(t);
       scrollDown(area);
       setTimeout(function(){
         t.remove();
         var m=document.createElement('div');
         m.className='ak-bot-msg';
-        m.innerHTML='<div class="ak-bot-avatar">\u2728</div><div class="ak-bot-bubble">'+html+'</div>';
+        m.innerHTML='<div class="ak-bot-avatar">✨</div><div class="ak-bot-bubble">'+html+'</div>';
         area.appendChild(m);
         scrollDown(area);
         resolve(m);
@@ -77,9 +76,7 @@ function userMsg(area,txt){
   scrollDown(area);
 }
 
-// Sticky action bar - always visible at bottom of scroll container
 function actionBar(area,buttons){
-  // Remove any previous action bar
   var old=area.querySelector('.ak-action-bar');
   if(old)old.remove();
   var bar=document.createElement('div');
@@ -97,7 +94,6 @@ function actionBar(area,buttons){
 }
 
 function scrollDown(area){
-  // Scroll the parent container to the bottom
   var p=area.parentElement;
   while(p){
     if(p.scrollHeight>p.clientHeight && p.style.overflowY==='auto'){
@@ -106,6 +102,87 @@ function scrollDown(area){
     }
     p=p.parentElement;
   }
+}
+
+// Excel Export via SheetJS
+function loadSheetJS(cb){
+  if(window.XLSX){cb();return;}
+  var s=document.createElement('script');
+  s.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+  s.onload=cb;
+  s.onerror=function(){console.error('[AK-Flow] SheetJS laden fehlgeschlagen');cb();};
+  document.head.appendChild(s);
+}
+
+function buildExcelAndEmail(orderNum){
+  loadSheetJS(function(){
+    var rows=[
+      ['Bestellnummer','Abteilung','Artikel','Bestellgrund','Lieferort','Lieferdatum','Oberteil','Hose','Schuh','Genehmiger'],
+      [
+        orderNum,
+        akState.abt||'',
+        (akState.art||[]).join(', '),
+        akState.gr||'',
+        akState.lo||'',
+        akState.dt||'',
+        akState.ob||'',
+        akState.ho||'',
+        akState.sc||'',
+        akState.gen||''
+      ]
+    ];
+    if(window.XLSX){
+      try{
+        var wb=XLSX.utils.book_new();
+        var ws=XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols']=[{wch:18},{wch:22},{wch:40},{wch:28},{wch:20},{wch:16},{wch:10},{wch:10},{wch:10},{wch:25}];
+        XLSX.utils.book_append_sheet(wb,'Bestellung',ws);
+        var fname='AK-Bestellung-'+orderNum.replace('#','')+'.xlsx';
+        XLSX.writeFile(wb,fname);
+        console.log('[AK-Flow] Excel heruntergeladen: '+fname);
+      }catch(e){
+        console.error('[AK-Flow] Excel-Fehler:',e);
+      }
+    }
+    var subject=encodeURIComponent('Neue Arbeitskleidung-Bestellung '+orderNum);
+    var body=encodeURIComponent(
+      'Guten Tag,
+
+'+
+      'eine neue Bestellung für Arbeitskleidung wurde eingereicht.
+
+'+
+      'Bestellnummer: '+orderNum+'
+'+
+      'Abteilung: '+(akState.abt||'')+'
+'+
+      'Artikel: '+(akState.art||[]).join(', ')+'
+'+
+      'Bestellgrund: '+(akState.gr||'')+'
+'+
+      'Lieferort: '+(akState.lo||'')+'
+'+
+      'Lieferdatum: '+(akState.dt||'')+'
+'+
+      (akState.ob?'Oberteil-Größe: '+akState.ob+'
+':'')+
+      (akState.ho?'Hosen-Größe: '+akState.ho+'
+':'')+
+      (akState.sc?'Schuh-Größe: '+akState.sc+'
+':'')+
+      'Genehmiger: '+(akState.gen||'')+'
+
+'+
+      'Die vollständigen Bestelldetails finden Sie in der angehängten Excel-Datei ('+
+      'AK-Bestellung-'+orderNum.replace('#','')+'.xlsx).
+
+'+
+      'Mit freundlichen Grüßen
+Kötter KI-Assistent'
+    );
+    var mailto='mailto:joerg.riedel@staffbase.com?subject='+subject+'&body='+body;
+    window.location.href=mailto;
+  });
 }
 
 function startFlow(grid){
@@ -125,21 +202,21 @@ function startFlow(grid){
 }
 
 function step1(area,sa){
-  botMsg(area,'Hallo! Ich helfe dir bei der <strong>Bestellung von Arbeitskleidung</strong>. \uD83D\uDC77').then(function(){
-    botMsg(area,'Bitte w\u00e4hle deine <strong>Abteilung</strong>:<select class="ak-select-inline" id="ak-abt"><option value="">-- Abteilung w\u00e4hlen --</option><option>Objektschutz</option><option>Revierdienst</option><option>Empfang &amp; Service</option><option>Veranstaltungsschutz</option><option>Luftsicherheit</option><option>Zentrale Dienste</option></select>',350).then(function(){
-      botMsg(area,'W\u00e4hle <strong>Artikel</strong>:<div class="ak-tile-grid" id="ak-art"><div class="ak-chat-tile" data-art="Sicherheitsjacke"><div class="ico">\uD83E\uDDE5</div>Sicherheitsjacke</div><div class="ak-chat-tile" data-art="Diensthose"><div class="ico">\uD83D\uDC56</div>Diensthose</div><div class="ak-chat-tile" data-art="Polo-Shirt"><div class="ico">\uD83D\uDC54</div>Polo-Shirt</div><div class="ak-chat-tile" data-art="Sicherheitsweste"><div class="ico">\uD83E\uDDBA</div>Sicherheitsweste</div><div class="ak-chat-tile" data-art="Einsatzstiefel"><div class="ico">\uD83D\uDC62</div>Einsatzstiefel</div><div class="ak-chat-tile" data-art="Schirmm\u00fctze"><div class="ico">\uD83E\uDDE2</div>Schirmm\u00fctze</div></div><select class="ak-select-inline" id="ak-gr" style="margin-top:10px"><option value="">-- Bestellgrund --</option><option>Erstausstattung</option><option>Ersatzbeschaffung (Verschlei\u00df)</option><option>Gr\u00f6\u00dfenänderung</option><option>Neuer Einsatzbereich</option></select>',700).then(function(){
+  botMsg(area,'Hallo! Ich helfe dir bei der <strong>Bestellung von Arbeitskleidung</strong>. 👷').then(function(){
+    botMsg(area,'Bitte wähle deine <strong>Abteilung</strong>:<select class="ak-select-inline" id="ak-abt"><option value="">-- Abteilung wählen --</option><option>Objektschutz</option><option>Revierdienst</option><option>Empfang &amp; Service</option><option>Veranstaltungsschutz</option><option>Luftsicherheit</option><option>Zentrale Dienste</option></select>',350).then(function(){
+      botMsg(area,'Wähle <strong>Artikel</strong>:<div class="ak-tile-grid" id="ak-art"><div class="ak-chat-tile" data-art="Sicherheitsjacke"><div class="ico">🧥</div>Sicherheitsjacke</div><div class="ak-chat-tile" data-art="Diensthose"><div class="ico">👖</div>Diensthose</div><div class="ak-chat-tile" data-art="Polo-Shirt"><div class="ico">👔</div>Polo-Shirt</div><div class="ak-chat-tile" data-art="Sicherheitsweste"><div class="ico">🦺</div>Sicherheitsweste</div><div class="ak-chat-tile" data-art="Einsatzstiefel"><div class="ico">👢</div>Einsatzstiefel</div><div class="ak-chat-tile" data-art="Schirmmütze"><div class="ico">🧢</div>Schirmmütze</div></div><select class="ak-select-inline" id="ak-gr" style="margin-top:10px"><option value="">-- Bestellgrund --</option><option>Erstausstattung</option><option>Ersatzbeschaffung (Verschleiß)</option><option>Größenänderung</option><option>Neuer Einsatzbereich</option></select>',700).then(function(){
         var g=area.querySelector('#ak-art');
         if(g)g.addEventListener('click',function(e){var t=e.target.closest('.ak-chat-tile');if(t)t.classList.toggle('sel');});
-        actionBar(area,[{label:'Weiter \u2192',fn:function(){
+        actionBar(area,[{label:'Weiter →',fn:function(){
           var a=area.querySelector('#ak-abt'),gr=area.querySelector('#ak-gr'),ts=area.querySelectorAll('.ak-chat-tile.sel');
-          if(!a||!a.value){alert('Abteilung w\u00e4hlen');return;}
-          if(!ts.length){alert('Artikel w\u00e4hlen');return;}
-          if(!gr||!gr.value){alert('Bestellgrund w\u00e4hlen');return;}
+          if(!a||!a.value){alert('Abteilung wählen');return;}
+          if(!ts.length){alert('Artikel wählen');return;}
+          if(!gr||!gr.value){alert('Bestellgrund wählen');return;}
           akState.abt=a.value;
           akState.art=Array.from(ts).map(function(t){return t.dataset.art;});
           akState.gr=gr.value;
           area.querySelector('.ak-action-bar').remove();
-          userMsg(area,'\uD83D\uDCE6 '+akState.art.join(', ')+' | '+akState.abt);
+          userMsg(area,'📦 '+akState.art.join(', ')+' | '+akState.abt);
           step2(area,sa);
         }}]);
       });
@@ -151,25 +228,25 @@ function step2(area,sa){
   var hO=akState.art.some(function(a){return['Sicherheitsjacke','Polo-Shirt','Sicherheitsweste'].indexOf(a)>-1;}),
       hH=akState.art.indexOf('Diensthose')>-1,
       hS=akState.art.indexOf('Einsatzstiefel')>-1,
-      html='<strong>Gr\u00f6\u00dfen &amp; Lieferung</strong><br><br>';
-  if(hO)html+='<label class="ak-input-label">Oberteil / Jacke</label><select class="ak-select-inline" id="ak-ob"><option value="">Gr\u00f6\u00dfe w\u00e4hlen</option><option>XS</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>XXL</option><option>3XL</option></select>';
-  if(hH)html+='<label class="ak-input-label">Hosenweite</label><select class="ak-select-inline" id="ak-ho"><option value="">Gr\u00f6\u00dfe w\u00e4hlen</option><option>44</option><option>46</option><option>48</option><option>50</option><option>52</option><option>54</option><option>56</option><option>58</option></select>';
-  if(hS)html+='<label class="ak-input-label">Schuhgr\u00f6\u00dfe</label><select class="ak-select-inline" id="ak-sc"><option value="">Gr\u00f6\u00dfe w\u00e4hlen</option><option>38</option><option>39</option><option>40</option><option>41</option><option>42</option><option>43</option><option>44</option><option>45</option><option>46</option></select>';
-  html+='<label class="ak-input-label">Lieferort</label><select class="ak-select-inline" id="ak-lo"><option value="">Standort w\u00e4hlen</option><option>Zentrale Essen</option><option>NL Hamburg</option><option>NL M\u00fcnchen</option><option>NL Berlin</option><option>NL Frankfurt</option></select>';
+      html='<strong>Größen &amp; Lieferung</strong><br><br>';
+  if(hO)html+='<label class="ak-input-label">Oberteil / Jacke</label><select class="ak-select-inline" id="ak-ob"><option value="">Größe wählen</option><option>XS</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>XXL</option><option>3XL</option></select>';
+  if(hH)html+='<label class="ak-input-label">Hosenweite</label><select class="ak-select-inline" id="ak-ho"><option value="">Größe wählen</option><option>44</option><option>46</option><option>48</option><option>50</option><option>52</option><option>54</option><option>56</option><option>58</option></select>';
+  if(hS)html+='<label class="ak-input-label">Schuhgröße</label><select class="ak-select-inline" id="ak-sc"><option value="">Größe wählen</option><option>38</option><option>39</option><option>40</option><option>41</option><option>42</option><option>43</option><option>44</option><option>45</option><option>46</option></select>';
+  html+='<label class="ak-input-label">Lieferort</label><select class="ak-select-inline" id="ak-lo"><option value="">Standort wählen</option><option>Zentrale Essen</option><option>NL Hamburg</option><option>NL München</option><option>NL Berlin</option><option>NL Frankfurt</option></select>';
   html+='<label class="ak-input-label">Wunsch-Lieferdatum</label><input type="date" class="ak-date-input" id="ak-dt">';
   botMsg(area,html,350).then(function(){
     actionBar(area,[
-      {label:'\u2190 Zur\u00fcck',cls:'secondary',fn:function(){area.innerHTML='';akState={};step1(area,sa);}},
-      {label:'Weiter \u2192',fn:function(){
-        if(hO){var v=area.querySelector('#ak-ob');if(!v||!v.value){alert('Oberteil w\u00e4hlen');return;}akState.ob=v.value;}
-        if(hH){var v2=area.querySelector('#ak-ho');if(!v2||!v2.value){alert('Hose w\u00e4hlen');return;}akState.ho=v2.value;}
-        if(hS){var v3=area.querySelector('#ak-sc');if(!v3||!v3.value){alert('Schuh w\u00e4hlen');return;}akState.sc=v3.value;}
+      {label:'← Zurück',cls:'secondary',fn:function(){area.innerHTML='';akState={};step1(area,sa);}},
+      {label:'Weiter →',fn:function(){
+        if(hO){var v=area.querySelector('#ak-ob');if(!v||!v.value){alert('Oberteil wählen');return;}akState.ob=v.value;}
+        if(hH){var v2=area.querySelector('#ak-ho');if(!v2||!v2.value){alert('Hose wählen');return;}akState.ho=v2.value;}
+        if(hS){var v3=area.querySelector('#ak-sc');if(!v3||!v3.value){alert('Schuh wählen');return;}akState.sc=v3.value;}
         var lo=area.querySelector('#ak-lo'),dt=area.querySelector('#ak-dt');
-        if(!lo||!lo.value){alert('Lieferort w\u00e4hlen');return;}
-        if(!dt||!dt.value){alert('Datum w\u00e4hlen');return;}
+        if(!lo||!lo.value){alert('Lieferort wählen');return;}
+        if(!dt||!dt.value){alert('Datum wählen');return;}
         akState.lo=lo.value;akState.dt=dt.value;
         area.querySelector('.ak-action-bar').remove();
-        userMsg(area,'\uD83D\uDCCF Gr\u00f6\u00dfen OK | \uD83D\uDCCD '+akState.lo);
+        userMsg(area,'📏 Größen OK | 📍 '+akState.lo);
         step3(area,sa);
       }}
     ]);
@@ -182,15 +259,15 @@ function step3(area,sa){
   if(akState.ho)rows.push(['Hose',akState.ho]);
   if(akState.sc)rows.push(['Schuh',akState.sc]);
   var tbl='<table class="ak-summary-table">'+rows.map(function(r){return'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>';}).join('')+'</table>';
-  botMsg(area,'<strong>Best\u00e4tigung</strong>'+tbl+'<label class="ak-input-label" style="margin-top:10px">Genehmiger</label><select class="ak-select-inline" id="ak-gen"><option value="">W\u00e4hlen...</option><option value="Max M\u00fcller">Max M\u00fcller (Teamleiter)</option><option value="Sandra Schmidt">Sandra Schmidt (HR)</option><option value="Thomas Weber">Thomas Weber (Abt.-leiter)</option></select>',350).then(function(){
+  botMsg(area,'<strong>Bestätigung</strong>'+tbl+'<label class="ak-input-label" style="margin-top:10px">Genehmiger</label><select class="ak-select-inline" id="ak-gen"><option value="">Wählen...</option><option value="Max Müller">Max Müller (Teamleiter)</option><option value="Sandra Schmidt">Sandra Schmidt (HR)</option><option value="Thomas Weber">Thomas Weber (Abt.-leiter)</option></select>',350).then(function(){
     actionBar(area,[
-      {label:'\u2190 Zur\u00fcck',cls:'secondary',fn:function(){area.querySelector('.ak-action-bar').remove();step2(area,sa);}},
-      {label:'\u2705 Jetzt bestellen',cls:'green',fn:function(){
+      {label:'← Zurück',cls:'secondary',fn:function(){area.querySelector('.ak-action-bar').remove();step2(area,sa);}},
+      {label:'✅ Jetzt bestellen',cls:'green',fn:function(){
         var g=area.querySelector('#ak-gen');
-        if(!g||!g.value){alert('Genehmiger w\u00e4hlen');return;}
+        if(!g||!g.value){alert('Genehmiger wählen');return;}
         akState.gen=g.value;
         area.querySelector('.ak-action-bar').remove();
-        userMsg(area,'\u2705 Best\u00e4tigt | '+akState.gen);
+        userMsg(area,'✅ Bestätigt | '+akState.gen);
         success(area);
       }}
     ]);
@@ -199,7 +276,12 @@ function step3(area,sa){
 
 function success(area){
   var num='#AK-2026-'+Math.floor(1000+Math.random()*9000);
-  botMsg(area,'<div class="ak-success-box"><div style="font-size:26px">\uD83C\uDF89</div><div class="ak-order-num">'+num+'</div><div style="font-size:12px;color:#333">Bestellung erfolgreich eingereicht!</div></div><div style="font-size:11px;color:#555;margin-top:8px">\uD83D\uDCE7 <strong>'+akState.gen+'</strong> wurde zur Genehmigung benachrichtigt.<br><em>Lieferung: '+akState.lo+' | '+akState.dt+'</em></div>',350).then(function(){
+  akState.orderNum=num;
+  botMsg(area,'<div class="ak-success-box"><div style="font-size:26px">🎉</div><div class="ak-order-num">'+num+'</div><div style="font-size:12px;color:#333">Bestellung erfolgreich eingereicht!</div></div>'+
+    '<div style="font-size:11px;color:#555;margin-top:8px">📧 <strong>'+akState.gen+'</strong> wurde zur Genehmigung benachrichtigt.<br>'+
+    '<em>Lieferung: '+akState.lo+' | '+akState.dt+'</em></div>'+
+    '<div style="font-size:11px;color:#1a7f37;margin-top:6px">📊 Excel-Datei wird heruntergeladen &amp; E-Mail wird geöffnet...</div>',350).then(function(){
+    setTimeout(function(){buildExcelAndEmail(num);},800);
     actionBar(area,[{label:'Neue Bestellung',fn:function(){area.innerHTML='';akState={};step1(area,area.parentElement);}}]);
   });
 }
@@ -226,5 +308,5 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
 var _p=history.pushState;
 history.pushState=function(){_p.apply(history,arguments);setTimeout(observe,500);};
 window.addEventListener('popstate',function(){setTimeout(observe,500);});
-console.log('[AK-Flow] v1.2 ready \u2705 (sticky buttons fix)');
+console.log('[AK-Flow] v1.3 ready ✅ (Excel export + Email notification)');
 })();
