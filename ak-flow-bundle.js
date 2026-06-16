@@ -329,31 +329,42 @@
     renderStep1();
   }
 
-  function tryInit(){
-    var container=document.getElementById('ak-chat-area');
-    if(!container){
-      var chatAreas=document.querySelectorAll('[id*="chat"],[class*="chat-content"],[class*="chatContent"],[class*="agent-content"],[class*="agentContent"]');
-      if(chatAreas.length>0) container=chatAreas[0];
-    }
-    if(!container){
-      var panels=document.querySelectorAll('[class*="panel"],[class*="Panel"],[class*="dialog"],[class*="Dialog"]');
-      for(var i=0;i<panels.length;i++){
-        if(panels[i].offsetHeight>100){container=panels[i];break;}
-      }
-    }
-    if(container&&!container.dataset.akInit){
-      container.dataset.akInit='1';
-      initFlow(container);
-      return true;
-    }
-    return false;
-  }
+function getAkContainer(){
+  var panel=document.querySelector('[data-testid="ai-assistant-view"]');
+  if(!panel) return null;
+  var scrollArea=panel.querySelector('[class*="overflow-y-auto"]');
+  return scrollArea||null;
+}
 
-  if(!tryInit()){
-    var mo=new MutationObserver(function(muts,obs){
-      if(tryInit()) obs.disconnect();
-    });
-    mo.observe(document.body,{childList:true,subtree:true});
-    setTimeout(function(){mo.disconnect();},15000);
+function attachAkButton(){
+  var btn=Array.from(document.querySelectorAll('button')).find(function(b){
+    return b.textContent.trim()==='Arbeitskleidung bestellen';
+  });
+  if(btn&&!btn.dataset.akAttached){
+    btn.dataset.akAttached='1';
+    btn.addEventListener('click',function(e){
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      setTimeout(function(){
+        var container=getAkContainer();
+        if(container&&!container.dataset.akInit){
+          container.dataset.akInit='1';
+          // Hide footer input
+          var footer=document.querySelector('[data-testid="ai-assistant-footer"]');
+          if(footer) footer.style.display='none';
+          initFlow(container);
+        }
+      },50);
+    },true);
+    return true;
   }
-})();
+  return false;
+}
+
+if(!attachAkButton()){
+  var mo=new MutationObserver(function(muts,obs){
+    if(attachAkButton()) obs.disconnect();
+  });
+  mo.observe(document.body,{childList:true,subtree:true});
+  setTimeout(function(){mo.disconnect();},30000);
+}
