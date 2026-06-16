@@ -321,7 +321,7 @@
       var labels=state.selectedArticles.map(function(id){return articles.find(function(a){return a.id===id;}).label;});
       var notifCard=document.createElement('div');
       notifCard.className='ak-notification-card';
-      notifCard.innerHTML='<div class="ak-notif-header">🔔 Genehmigungsanfrage</div><div class="ak-notif-body">Hallo <strong>'+state.genehmiger+'</strong>,<br>eine neue Bestellung ('+state.orderNum+') über <strong>'+labels.join(', ')+'</strong> wartet auf deine Freigabe.</div><div class="ak-notif-actions"><button class="ak-btn-accept" onclick="this.closest('.ak-notification-card').innerHTML='<span style=\"color:#1a7f37;font-weight:600\">✅ Bestellung genehmigt!</span>'">✅ Annehmen</button><button class="ak-btn-decline" onclick="this.closest('.ak-notification-card').innerHTML='<span style=\"color:#cf222e;font-weight:600\">❌ Bestellung abgelehnt.</span>'">❌ Ablehnen</button></div>';
+      notifCard.innerHTML='<div class="ak-notif-header">🔔 Genehmigungsanfrage</div><div class="ak-notif-body">Hallo <strong>'+state.genehmiger+'</strong>,<br>eine neue Bestellung ('+state.orderNum+') über <strong>'+labels.join(', ')+'</strong> wartet auf deine Freigabe.</div><div class="ak-notif-actions"><button class="ak-btn-accept" onclick="this.closest(\'.ak-notification-card\').innerHTML=\'<span style=\\"color:#1a7f37;font-weight:600\\">✅ Bestellung genehmigt!</span>\'">&#x2705; Annehmen</button><button class="ak-btn-decline" onclick="this.closest(\'.ak-notification-card\').innerHTML=\'<span style=\\"color:#cf222e;font-weight:600\\">❌ Bestellung abgelehnt.</span>\'">&#x274C; Ablehnen</button></div>';
       chatArea.appendChild(notifCard);
       scrollToBottom();
     }
