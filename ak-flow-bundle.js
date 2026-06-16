@@ -342,19 +342,17 @@ function attachAkButton(){
   });
   if(btn&&!btn.dataset.akAttached){
     btn.dataset.akAttached='1';
-    btn.addEventListener('click',function(e){
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      setTimeout(function(){
-        var container=getAkContainer();
-        if(container&&!container.dataset.akInit){
-          container.dataset.akInit='1';
-          // Hide footer input
-          var footer=document.querySelector('[data-testid="ai-assistant-footer"]');
-          if(footer) footer.style.display='none';
-          initFlow(container);
-        }
-      },50);
+    btn.addEventListener('mousedown',function(){
+      var container=getAkContainer();
+      if(container&&!container.dataset.akInit){
+        container.dataset.akInit='1';
+        // Clear React content and take over
+        container.innerHTML='';
+        // Hide footer input
+        var footer=document.querySelector('[data-testid="ai-assistant-footer"]');
+        if(footer) footer.style.display='none';
+        initFlow(container);
+      }
     },true);
     return true;
   }
