@@ -332,8 +332,7 @@
 function getAkContainer(){
   var panel=document.querySelector('[data-testid="ai-assistant-view"]');
   if(!panel) return null;
-  var scrollArea=panel.querySelector('[class*="overflow-y-auto"]');
-  return scrollArea||null;
+  return panel.querySelector('[class*="overflow-y-auto"]')||null;
 }
 
 function attachAkButton(){
@@ -346,9 +345,7 @@ function attachAkButton(){
       var container=getAkContainer();
       if(container&&!container.dataset.akInit){
         container.dataset.akInit='1';
-        // Clear React content and take over
         container.innerHTML='';
-        // Hide footer input
         var footer=document.querySelector('[data-testid="ai-assistant-footer"]');
         if(footer) footer.style.display='none';
         initFlow(container);
@@ -359,10 +356,9 @@ function attachAkButton(){
   return false;
 }
 
-if(!attachAkButton()){
-  var mo=new MutationObserver(function(muts,obs){
-    if(attachAkButton()) obs.disconnect();
-  });
-  mo.observe(document.body,{childList:true,subtree:true});
-  setTimeout(function(){mo.disconnect();},30000);
-}
+var mo=new MutationObserver(function(){
+  setTimeout(attachAkButton,0);
+});
+mo.observe(document.body,{childList:true,subtree:true});
+setTimeout(function(){mo.disconnect();},60000);
+attachAkButton();
